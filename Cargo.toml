@@ -1,0 +1,21 @@
+[package]
+name = "one-billion-row-challenge"
+version = "0.1.0"
+edition = "2021"
+default-run = "1brc"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rayon = "1.5.1"
+rand = "0.8"
+rand_distr = "0.4"
+
+[[bin]]
+name = "1brc"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "generate"
+path = "src/generate.rs"

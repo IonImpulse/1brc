@@ -34,8 +34,7 @@ fn main() {
     println!("Chunk size: {}", chunk_size);
 
     // Create a vector of tuples, each tuple containing the start and end of a chunk
-    let chunk_specs = (0..rayon::current_num_threads()).map(|chunk| {
-        chunk_start = chunk as u64 * chunk_size;
+    let chunk_specs = (0..rayon::current_num_threads()).map(|_| {
         chunk_end = chunk_start + chunk_size;
 
         // The end of the chunk doesn't necessarily end at the end of a line, 
@@ -45,12 +44,16 @@ fn main() {
         let mut reader = std::io::BufReader::new(std::fs::File::open("measurements.txt").unwrap());
         reader.seek(std::io::SeekFrom::Start(chunk_end)).unwrap();
         let mut reader_bytes = reader.bytes();
+        let mut offset = 0;
 
         while let Some(Ok(c)) = reader_bytes.next() {
+            offset += 1;
             if c == b'\n' {
                 break;
             }
         }
+
+        let chunk_end = chunk_end + offset;
 
         // Return the start and end of the chunk
         let to_return = (chunk_start, chunk_end);

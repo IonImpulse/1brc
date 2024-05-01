@@ -59,7 +59,7 @@ fn main() {
         let to_return = (chunk_start, size.min(chunk_end));
 
         // Before next loop, set the start of the next chunk to the end of the current chunk
-        chunk_start = chunk_end + 1;
+        chunk_start = chunk_end;
         
         to_return
     }).collect::<Vec<(u64, u64)>>();
@@ -98,6 +98,7 @@ fn main() {
 
     for (key, value) in data {
         let mean = value.2 as f64 / value.3 as f64;
+        let mean = (mean * 10.0).round() / 10.0;
         println!("{};{};{};{}", std::str::from_utf8(&key).unwrap(), value.0 as f64, mean, value.1 as f64);
     }
 

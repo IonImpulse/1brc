@@ -56,7 +56,7 @@ fn main() {
         let chunk_end = chunk_end + offset;
 
         // Return the start and end of the chunk
-        let to_return = (chunk_start, chunk_end);
+        let to_return = (chunk_start, size.min(chunk_end));
 
         // Before next loop, set the start of the next chunk to the end of the current chunk
         chunk_start = chunk_end + 1;
@@ -123,9 +123,14 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, (i8, i8, u64
     let mut bytes_consumed = 0;
     let mut c;
     
+    let mut name = Vec::with_capacity(124);
+    let mut temp = Vec::with_capacity(8);
+
+    let total_bytes = end - start;
+
     loop {
-        let mut name = Vec::with_capacity(124);
-        let mut temp = Vec::with_capacity(8);
+        name.clear();
+        temp.clear();
 
         // Read in the name, byte by byte until
         // the semicolon is found. We don't want
@@ -184,7 +189,7 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, (i8, i8, u64
         }
 
 
-        if bytes_consumed >= end - start {
+        if bytes_consumed >= total_bytes {
             break;
         }
     }

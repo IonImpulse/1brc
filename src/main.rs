@@ -1,7 +1,5 @@
 mod generate;
 
-use core::num;
-use std::hash::Hash;
 use std::io::{Read, Seek};
 use std::collections::HashMap;
 
@@ -14,7 +12,47 @@ struct Record {
     count: u64,
 }
 
+impl Record {
+    #[inline]
+    fn new(temp: i16) -> Self {
+        Self {
+            min: temp,
+            max: temp,
+            total: temp as u64,
+            count: 1,
+        }
+    }
+
+    fn add(&mut self, temp: i16) {
+        self.min = self.min.min(temp);
+        self.max = self.max.max(temp);
+        self.total += temp as u64;
+        self.count += 1;
+    }
+
+    fn mean(&self) -> f64 {
+        (self.total as f64 / self.count as f64) / 10.
+    }
+
+    fn min(&self) -> f64 {
+        self.min as f64 / 10.
+    }
+
+    fn max(&self) -> f64 {
+        self.max as f64 / 10.
+    }
+
+    #[inline]
+    fn combine(&mut self, other: &Self) {
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+        self.total += other.total;
+        self.count += other.count;
+    }
+}
+
 fn main() {
+    let start_time = std::time::Instant::now();
     // This file reads in 1 billion rows of data from
     // measurements.txt.
     // The file is a "csv" file, each line being name;temp
@@ -81,11 +119,7 @@ fn main() {
     }).reduce(HashMap::new, |mut map1, map2| {
         for (key, value) in map2 {
             if map1.contains_key(&key) {
-                let mut entry: (i16, i16, u64, u64) = *map1.get_mut(&key).unwrap();
-                entry.0 = entry.0.min(value.0);
-                entry.1 = entry.1.max(value.1);
-                entry.2 += value.2;
-                entry.3 += value.3;
+                map1.get_mut(&key).unwrap().combine(&value);
             } else {
                 map1.insert(key.clone(), value);
             }
@@ -107,27 +141,44 @@ fn main() {
     data.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
     for (key, value) in data {
-        let mean = (value.2 as f64 / value.3 as f64) / 10.;
-        // 
-        let mean = (mean * 10.0).round() / 10.0;
-
-        let min = value.0 as f64 / 10.;
-        let max = value.1 as f64 / 10.;
-
-        let min = (min * 10.0).round() / 10.0;
-        let max = (max * 10.0).round() / 10.0;
+        let min = (value.min() * 10.).round() / 10.;
+        let mean = (value.mean() * 10.).round() / 10.;
+        let max = (value.max() * 10.).round() / 10.;
         println!("{};{};{};{}", std::str::from_utf8(&key).unwrap(), min, mean, max);
     }
 
 
+    println!("Time taken: {:?}", start_time.elapsed());
 }
 
+#[inline]
+fn parse_temp(temp: &Vec<u8>) -> i16 {
+    let is_negative = temp[0] == b'-';
+
+    // Convert the temperature to an i16 
+    // by converting the bytes to digits
+    let mut temp_num = 0;
+    let mut num_real_digits = 0;
+    
+    // Skip the negative sign if it exists
+    for &digit in temp.iter().skip(is_negative as usize) {
+        let to_power: u32= (temp.len() - is_negative as usize) as u32 - num_real_digits - 1;
+
+        temp_num += (digit - b'0') as i16 * 10_i16.pow(to_power);
+        num_real_digits += 1;
+    }
+
+    if is_negative {
+        temp_num *= -1;
+    }
+
+    temp_num
+}
 
 fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
     let mut reader = std::io::BufReader::new(std::fs::File::open(file).unwrap());
     reader.seek(std::io::SeekFrom::Start(start)).unwrap();
     let mut reader_bytes = reader.bytes();
-
 
     // Return a hashmap of the data, with the name as the key and the values of
     // - min
@@ -135,8 +186,9 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
     // - total
     // - count
     // All temps are multiplied by 10
-
-    let mut data_map: HashMap<Vec<u8>, Record> = std::collections::HashMap::new();
+    
+    // Quickest hasher in std
+    let mut data_map: HashMap<Vec<u8>, Record> = std::collections::HashMap::with_capacity_and_hasher(10_000, Default::default());
 
     let mut bytes_consumed = 0;
     let mut c;
@@ -164,7 +216,6 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
                 name.push(c);
             }
         }
-        
 
         // Read in the temperature, byte by byte.
         // It's the same general idea as the name,
@@ -180,28 +231,13 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
                 temp.push(c);
             }
         }
-
-        let is_negative = temp[0] == b'-';
-
-        // Convert the temperature to an i16 
-        // by converting the bytes to digits
-        let mut temp_num = 0;
-        let mut num_real_digits = 0;
-        for &digit in temp.iter() {
-            if digit == b'-' || digit == b'.'{
-                continue;
-            }
-
-            temp_num += (digit - b'0') as i16 * 10_i16.pow(num_real_digits);
-            num_real_digits += 1;
-        }
-
-        if is_negative {
-            temp_num *= -1;
-        }
+        
+        // Read from the cache if the temperature has been seen before
+        // Otherwise, parse the temperature and add it to the cache
+        let temp_num = parse_temp(&temp);
 
         if let Some(entry) = data_map.get_mut(&name) {
-            
+            entry.add(temp_num as i16);
         } else {
             data_map.insert(name.clone(), Record::new(temp_num as i16));
         }

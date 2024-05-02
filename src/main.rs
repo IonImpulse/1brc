@@ -1,9 +1,18 @@
 mod generate;
 
+use core::num;
+use std::hash::Hash;
 use std::io::{Read, Seek};
 use std::collections::HashMap;
 
 use rayon::prelude::*;
+
+struct Record {
+    min: i16,
+    max: i16,
+    total: u64,
+    count: u64,
+}
 
 fn main() {
     // This file reads in 1 billion rows of data from
@@ -72,7 +81,7 @@ fn main() {
     }).reduce(HashMap::new, |mut map1, map2| {
         for (key, value) in map2 {
             if map1.contains_key(&key) {
-                let mut entry: (i8, i8, u64, u32) = *map1.get_mut(&key).unwrap();
+                let mut entry: (i16, i16, u64, u64) = *map1.get_mut(&key).unwrap();
                 entry.0 = entry.0.min(value.0);
                 entry.1 = entry.1.max(value.1);
                 entry.2 += value.2;
@@ -84,6 +93,7 @@ fn main() {
 
         map1
     });
+
 
     /*
     The program should print out the min, mean, and max values per station, alphabetically ordered. The format that is expected varies slightly from language to language, but the following example shows the expected output for the first three stations:
@@ -97,16 +107,23 @@ fn main() {
     data.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
     for (key, value) in data {
-        let mean = value.2 as f64 / value.3 as f64;
+        let mean = (value.2 as f64 / value.3 as f64) / 10.;
+        // 
         let mean = (mean * 10.0).round() / 10.0;
-        println!("{};{};{};{}", std::str::from_utf8(&key).unwrap(), value.0 as f64, mean, value.1 as f64);
+
+        let min = value.0 as f64 / 10.;
+        let max = value.1 as f64 / 10.;
+
+        let min = (min * 10.0).round() / 10.0;
+        let max = (max * 10.0).round() / 10.0;
+        println!("{};{};{};{}", std::str::from_utf8(&key).unwrap(), min, mean, max);
     }
 
 
 }
 
 
-fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, (i8, i8, u64, u32)>{
+fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
     let mut reader = std::io::BufReader::new(std::fs::File::open(file).unwrap());
     reader.seek(std::io::SeekFrom::Start(start)).unwrap();
     let mut reader_bytes = reader.bytes();
@@ -119,7 +136,7 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, (i8, i8, u64
     // - count
     // All temps are multiplied by 10
 
-    let mut data_map = std::collections::HashMap::new();
+    let mut data_map: HashMap<Vec<u8>, Record> = std::collections::HashMap::new();
 
     let mut bytes_consumed = 0;
     let mut c;
@@ -166,29 +183,28 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, (i8, i8, u64
 
         let is_negative = temp[0] == b'-';
 
-        // Convert the temperature to an i8 
+        // Convert the temperature to an i16 
         // by converting the bytes to digits
-        let digits = temp.iter().skip(if is_negative {1} else {0}).map(|&x| x - b'0').collect::<Vec<u8>>();
+        let mut temp_num = 0;
+        let mut num_real_digits = 0;
+        for &digit in temp.iter() {
+            if digit == b'-' || digit == b'.'{
+                continue;
+            }
 
-        let mut temp = 0;
-        for (i, &digit) in digits.iter().enumerate() {
-            temp += digit as i8 * 10_i8.pow((digits.len() - i - 1) as u32);
+            temp_num += (digit - b'0') as i16 * 10_i16.pow(num_real_digits);
+            num_real_digits += 1;
         }
 
         if is_negative {
-            temp *= -1;
+            temp_num *= -1;
         }
 
-        if data_map.contains_key(&name) {
-            let mut entry: (i8, i8, u64, u32) = *data_map.get_mut(&name).unwrap();
-            entry.0 = entry.0.min(temp);
-            entry.1 = entry.1.max(temp);
-            entry.2 += temp as u64;
-            entry.3 += 1;
+        if let Some(entry) = data_map.get_mut(&name) {
+            
         } else {
-            data_map.insert(name.clone(), (temp, temp, temp as u64, 1));
+            data_map.insert(name.clone(), Record::new(temp_num as i16));
         }
-
 
         if bytes_consumed >= total_bytes {
             break;

@@ -12,6 +12,7 @@ debug = 1
 rayon = "1.5.1"
 rand = "0.8"
 rand_distr = "0.4"
+atoi_simd = "0.16.0"
 
 [[bin]]
 name = "1brc"

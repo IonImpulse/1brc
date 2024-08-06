@@ -8,7 +8,7 @@ use rayon::prelude::*;
 struct Record {
     min: i16,
     max: i16,
-    total: u64,
+    total: i64,
     count: u64,
 }
 
@@ -18,7 +18,7 @@ impl Record {
         Self {
             min: temp,
             max: temp,
-            total: temp as u64,
+            total: temp as i64,
             count: 1,
         }
     }
@@ -26,7 +26,7 @@ impl Record {
     fn add(&mut self, temp: i16) {
         self.min = self.min.min(temp);
         self.max = self.max.max(temp);
-        self.total += temp as u64;
+        self.total += temp as i64;
         self.count += 1;
     }
 
@@ -151,30 +151,6 @@ fn main() {
     println!("Time taken: {:?}", start_time.elapsed());
 }
 
-#[inline]
-fn parse_temp(temp: &Vec<u8>) -> i16 {
-    let is_negative = temp[0] == b'-';
-
-    // Convert the temperature to an i16 
-    // by converting the bytes to digits
-    let mut temp_num = 0;
-    let mut num_real_digits = 0;
-    
-    // Skip the negative sign if it exists
-    for &digit in temp.iter().skip(is_negative as usize) {
-        let to_power: u32= (temp.len() - is_negative as usize) as u32 - num_real_digits - 1;
-
-        temp_num += (digit - b'0') as i16 * 10_i16.pow(to_power);
-        num_real_digits += 1;
-    }
-
-    if is_negative {
-        temp_num *= -1;
-    }
-
-    temp_num
-}
-
 fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
     let mut reader = std::io::BufReader::new(std::fs::File::open(file).unwrap());
     reader.seek(std::io::SeekFrom::Start(start)).unwrap();
@@ -234,7 +210,7 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
         
         // Read from the cache if the temperature has been seen before
         // Otherwise, parse the temperature and add it to the cache
-        let temp_num = parse_temp(&temp);
+        let temp_num: i16 = atoi_simd::parse(&temp).unwrap();
 
         if let Some(entry) = data_map.get_mut(&name) {
             entry.add(temp_num as i16);

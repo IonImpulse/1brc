@@ -5,6 +5,8 @@ use std::collections::HashMap;
 
 use rayon::prelude::*;
 
+const MEASUREMENTS_FILE: &str = "measurements.txt";
+
 struct Record {
     min: i16,
     max: i16,
@@ -54,12 +56,12 @@ impl Record {
 fn main() {
     let start_time = std::time::Instant::now();
     // This file reads in 1 billion rows of data from
-    // measurements.txt.
+    // MEASUREMENTS_FILE.
     // The file is a "csv" file, each line being name;temp
     // name is a string and temp is a float with one decimal
 
     // Stream in the file as bytes, not all at once
-    let file = std::fs::File::open("measurements.txt");
+    let file = std::fs::File::open(MEASUREMENTS_FILE);
 
     // If the file is not found, generate the file
     if file.is_err() {
@@ -88,7 +90,7 @@ fn main() {
         // so we need to read until we hit a \n character
         // We do this by creating a new reader for each chunk, seeking to the end of the chunk,
         // and reading until we hit a \n character
-        let mut reader = std::io::BufReader::new(std::fs::File::open("measurements.txt").unwrap());
+        let mut reader = std::io::BufReader::new(std::fs::File::open(MEASUREMENTS_FILE).unwrap());
         reader.seek(std::io::SeekFrom::Start(chunk_end)).unwrap();
         let mut reader_bytes = reader.bytes();
         let mut offset = 0;
@@ -115,7 +117,7 @@ fn main() {
 
     // Parallelize the reading of the file, calling the read_chunk function on each chunk
     let data = chunk_specs.into_par_iter().map(|(start, end)| {
-        read_chunk("measurements.txt", start, end)
+        read_chunk(MEASUREMENTS_FILE, start, end)
     }).reduce(HashMap::new, |mut map1, map2| {
         for (key, value) in map2 {
             if map1.contains_key(&key) {

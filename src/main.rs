@@ -24,7 +24,8 @@ impl Record {
             count: 1,
         }
     }
-
+    
+    #[inline]
     fn add(&mut self, temp: i16) {
         self.min = self.min.min(temp);
         self.max = self.max.max(temp);
@@ -80,8 +81,6 @@ fn main() {
     // Chunk size is file size divided by number of threads
     let chunk_size = size / rayon::current_num_threads() as u64;
 
-    println!("Chunk size: {}", chunk_size);
-
     // Create a vector of tuples, each tuple containing the start and end of a chunk
     let chunk_specs = (0..rayon::current_num_threads()).map(|_| {
         chunk_end = chunk_start + chunk_size;
@@ -113,8 +112,6 @@ fn main() {
         to_return
     }).collect::<Vec<(u64, u64)>>();
 
-    println!("{:?}", chunk_specs);
-
     // Parallelize the reading of the file, calling the read_chunk function on each chunk
     let data = chunk_specs.into_par_iter().map(|(start, end)| {
         read_chunk(MEASUREMENTS_FILE, start, end)
@@ -142,13 +139,16 @@ fn main() {
     let mut data = data.into_iter().collect::<Vec<_>>();
     data.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
+    let mut to_print = String::new();
+
     for (key, value) in data {
         let min = (value.min() * 10.).round() / 10.;
         let mean = (value.mean() * 10.).round() / 10.;
         let max = (value.max() * 10.).round() / 10.;
-        println!("{};{};{};{}", std::str::from_utf8(&key).unwrap(), min, mean, max);
+        to_print = format!("{}{};{};{};{}\n", to_print, std::str::from_utf8(&key).unwrap(), min, mean, max);
     }
 
+    println!("{}", to_print);
 
     println!("Time taken: {:?}", start_time.elapsed());
 }
@@ -224,8 +224,6 @@ fn read_chunk(file: &str, start: u64, end: u64) -> HashMap<Vec<u8>, Record>{
             break;
         }
     }
-
-    println!("Bytes consumed: {}", bytes_consumed);
 
     data_map
 }
